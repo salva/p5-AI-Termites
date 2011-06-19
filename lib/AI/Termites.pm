@@ -105,16 +105,18 @@ sub termite_action {
     my ($self, $termite) = @_;
     my $pos = $termite->{pos};
     my $wood = $self->{wood};
-    if (defined $termite->{wood_ix}) {
-        my $whitin = $self->{kdtree}->find_in_ball($pos, $self->{near});
-        # print "$whitin\n";
-        rand > exp(-$whitin/3) and $self->termite_leave_wood($termite);
-    }
-    else {
-        my ($min_ix, $min) = $self->{kdtree}->find_nearest_neighbor($pos, $self->{near});
-        if (defined $min_ix) {
-            my $rel = $min / $self->{near};
-            rand > $rel and $self->termite_take_wood($termite, $self->{kdtree_ixs}[$min_ix]);
+    my $whitin = $self->{kdtree}->find_in_ball($pos, $self->{near});
+    if ($whitin) {
+        if (defined $termite->{wood_ix}) {
+            # print "$whitin\n";
+            rand > exp(-$whitin/3) and $self->termite_leave_wood($termite);
+        }
+        else {
+            my ($min_ix, $min) = $self->{kdtree}->find_nearest_neighbor($pos, $self->{near} / $whitin);
+            if (defined $min_ix) {
+                my $rel = $min * $whitin / $self->{near};
+                rand > $rel and $self->termite_take_wood($termite, $self->{kdtree_ixs}[$min_ix]);
+            }
         }
     }
 }
