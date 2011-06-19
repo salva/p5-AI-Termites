@@ -9,11 +9,14 @@ use warnings;
 
 use Math::Vector::Real;
 use Math::Vector::Real::Random;
+use Math::Vector::Real::kdTree;
+
 use List::Util;
+use Carp;
 
 sub new {
     my ($class, %opts) = @_;
-    my ($dim, $box, $n_termites, $n_wood);
+    my ($dim, $box);
     $box = delete $opts{box};
     if (defined $box) {
 	$box = V(@$box);
@@ -21,12 +24,12 @@ sub new {
     }
     else {
 	$dim = delete $opts{dim} // 3;
-	$size = delete $opts{world_size} // 1000;
+	my $size = delete $opts{world_size} // 1000;
 	$box = Math::Vector::Real->cube($dim, $size);
     }
     my $n_termines = delete $opts{n_termites} // 50;
     my $n_wood = delete $opts{n_wood} // 200;
-    my $iterations = delete $opts{iterations};
+    my $iterations = delete $opts{iterations} // 0;
     my $termite_speed = delete $opts{termite_speed} // abs($box)/10;
     my $near = delete $opts{near} // abs($box)/50;
     %opts and croak "unknown parameter(s) ". join(", ", keys %opts);
@@ -39,18 +42,21 @@ sub new {
 		 iteration => 0,
 		 speed => $termite_speed,
 		 box => $box,
+                 near => $near,
+                 inear2 => 1/($near * $near),
 		 dim => $dim };
 
     bless $self, $class;
 
     push @wood, $self->new_wood for (1..$n_wood);
     push @termites, $self->new_termite for (1..$n_wood);
-    $self->iterate for (1..$n_iterations);
+    $self->iterate for (1..$iterations);
+    $self;
 }
 
-sub dim { $shift->{dim} }
+sub dim { shift->{dim} }
 
-sub box { $shift->{box} }
+sub box { shift->{box} }
 
 sub new_wood {
     my $self = shift;
@@ -64,7 +70,13 @@ sub new_termite {
 }
 
 sub before_termites_move {}
-sub before_termites_action {}
+sub before_termites_action {
+    my $self = shift;
+    my @ixs = grep !$self->{wood}[$_]{taken}, 0..$#{$self->{wood}};
+    $self->{kdtree_ixs} = \@ixs;
+    $self->{kdtree} = Math::Vector::Real::kdTree->new(map $_->{pos}, @{$self->{wood}}[@ixs]);
+}
+
 sub after_termites_action {}
 
 sub iterate {
@@ -76,10 +88,10 @@ sub iterate {
 	$self->termite_move($term);
     }
     $self->before_termites_action;
-    for my $term (@{self->{termites}}) {
+    for my $term (@{$self->{termites}}) {
 	$self->termite_action($term);
     }
-    $self->after_termites_move;
+    $self->after_termites_action;
 }
 
 sub termite_move {
@@ -90,31 +102,32 @@ sub termite_move {
 }
 
 sub termite_action {
-    for ($self, $termite) = @_;
+    my ($self, $termite) = @_;
     my $pos = $termite->{pos};
     my $wood = $self->{wood};
-    my ($min, $min_ix);
-    while (my ($ix, $w) = each @$wood) {
-	next if $w->{taken};
-	my $d2 = $pos->dist($w->{pos});
-	if (not defined $min or $min > $d2) {
-	    $min = $d2;
-	    $min_ix = $ix;
-	}
-    }
     if (defined $termite->{wood_ix}) {
-
+        my $whitin = $self->{kdtree}->find_in_ball($pos, $self->{near});
+        # print "$whitin\n";
+        rand > exp(-$whitin/3) and $self->termite_leave_wood($termite);
+    }
+    else {
+        my ($min_ix, $min) = $self->{kdtree}->find_nearest_neighbor($pos, $self->{near});
+        if (defined $min_ix) {
+            my $rel = $min / $self->{near};
+            rand > $rel and $self->termite_take_wood($termite, $self->{kdtree_ixs}[$min_ix]);
+        }
     }
 }
 
 sub termite_take_wood {
-    for ($self, $termite, $wood_ix) = @_;
-    $termite->{wood} = $wood_ix;
-    $self->{wood}[$wook_ix]{taken} = 1;
+    my ($self, $termite, $wood_ix) = @_;
+    $termite->{wood_ix} and croak "termite is already carrying some wood";
+    $termite->{wood_ix} = $wood_ix;
+    $self->{wood}[$wood_ix]{taken} = 1;
 }
 
 sub termite_leave_wood {
-    for ($self, $termite) = @_;
+    my ($self, $termite) = @_;
     my $wood_ix = delete $termite->{wood_ix} //
 	croak "termite can not leave wood because it is carrying nothing";
     $self->{wood}[$wood_ix]{taken} = 0;
