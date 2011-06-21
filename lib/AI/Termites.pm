@@ -26,6 +26,10 @@ sub new {
 	my $size = delete $opts{world_size} // 1000;
 	$box = Math::Vector::Real->cube($dim, $size);
     }
+
+    my $box_vol = 1;
+    $box_vol *= $_ for @$box;
+
     my $n_termines = delete $opts{n_termites} // 50;
     my $n_wood = delete $opts{n_wood} // 200;
     my $iterations = delete $opts{iterations} // 0;
@@ -41,8 +45,11 @@ sub new {
 		 iteration => 0,
 		 speed => $termite_speed,
 		 box => $box,
+                 box_vol => $box_vol,
+                 wood_density => $n_wood/$box_vol,
                  near => $near,
                  inear2 => 1/($near * $near),
+                 near_dim => $near ** $dim,
 		 dim => $dim };
 
     bless $self, $class;
