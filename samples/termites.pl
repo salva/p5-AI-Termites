@@ -21,7 +21,12 @@ sub sscl {
 
 $| = 1;
 
-my $ters = AI::Termites->new(dim => 2, world_size => 1.0, n_wood => 2000, n_termites => 300);
+my $species = $ARGV[0] // 'LoginquitasPostulo';
+
+my $class = "AI::Termites::$species";
+eval "require $class; 1" or die "unable to load $class: $@";
+
+my $ters = $class->new(dim => 2, world_size => 1.0, n_wood => 5000, n_termites => 30);
 $ters->iterate;
 
 my $n = 0;
@@ -55,5 +60,5 @@ while (1) {
     $n++;
     print "$n\r";
     
-    $ters->iterate for 0..9;
+    $ters->iterate for 0..2;
 }

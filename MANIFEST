@@ -4,3 +4,7 @@ MANIFEST
 README
 t/AI-Termites.t
 lib/AI/Termites.pm
+lib/AI/Termites/LoginquitasPostulo.pm
+lib/AI/Termites/VicinusOccurro.pm
+samples/termites.pl
+samples/termites3d.pl

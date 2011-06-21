@@ -9,7 +9,6 @@ use warnings;
 
 use Math::Vector::Real;
 use Math::Vector::Real::Random;
-use Math::Vector::Real::kdTree;
 
 use List::Util;
 use Carp;
@@ -69,16 +68,6 @@ sub new_termite {
     my $termite = { pos => $self->{box}->random_in_box };
 }
 
-sub before_termites_move {}
-sub before_termites_action {
-    my $self = shift;
-    my @ixs = grep !$self->{wood}[$_]{taken}, 0..$#{$self->{wood}};
-    $self->{kdtree_ixs} = \@ixs;
-    $self->{kdtree} = Math::Vector::Real::kdTree->new(map $_->{pos}, @{$self->{wood}}[@ixs]);
-}
-
-sub after_termites_action {}
-
 sub iterate {
     my $self = shift;
 
@@ -101,23 +90,20 @@ sub termite_move {
 									    $self->{speed}));
 }
 
+sub before_termites_move {}
+sub before_termites_action {}
+sub after_termites_action {}
+
 sub termite_action {
     my ($self, $termite) = @_;
-    my $pos = $termite->{pos};
-    my $wood = $self->{wood};
-    my $whitin = $self->{kdtree}->find_in_ball($pos, $self->{near});
-    if ($whitin) {
-        if (defined $termite->{wood_ix}) {
-            # print "$whitin\n";
-            rand > exp(-$whitin/3) and $self->termite_leave_wood($termite);
+    if (defined $termite->{wood_ix}) {
+        if ($self->termite_leave_wood_p($termite)) {
+            $self->termite_leave_wood($termite);
         }
-        else {
-            my ($min_ix, $min) = $self->{kdtree}->find_nearest_neighbor($pos, $self->{near} / $whitin);
-            if (defined $min_ix) {
-                my $rel = $min * $whitin / $self->{near};
-                rand > $rel and $self->termite_take_wood($termite, $self->{kdtree_ixs}[$min_ix]);
-            }
-        }
+    }
+    else {
+        my $wood_ix = $self->termite_take_wood_p($termite);
+        defined $wood_ix and $self->termite_take_wood($termite, $wood_ix);
     }
 }
 
