@@ -30,7 +30,7 @@ sub new {
     my $box_vol = 1;
     $box_vol *= $_ for @$box;
 
-    my $n_termines = delete $opts{n_termites} // 50;
+    my $n_termites = delete $opts{n_termites} // 50;
     my $n_wood = delete $opts{n_wood} // 200;
     my $iterations = delete $opts{iterations} // 0;
     my $termite_speed = delete $opts{termite_speed} // abs($box)/10;
@@ -50,12 +50,13 @@ sub new {
                  near => $near,
                  inear2 => 1/($near * $near),
                  near_dim => $near ** $dim,
+                 taken => 0,
 		 dim => $dim };
 
     bless $self, $class;
 
     push @wood, $self->new_wood for (1..$n_wood);
-    push @termites, $self->new_termite for (1..$n_wood);
+    push @termites, $self->new_termite for (1..$n_termites);
     $self->iterate for (1..$iterations);
     $self;
 }
@@ -116,17 +117,23 @@ sub termite_action {
 
 sub termite_take_wood {
     my ($self, $termite, $wood_ix) = @_;
-    $termite->{wood_ix} and croak "termite is already carrying some wood";
+    my $wood = $self->{wood}[$wood_ix];
+    return if $wood->{taken};
+    $wood->{taken} = 1;
+    $self->{taken}++;
+    # print "taken: $self->{taken}\n";
+    defined $termite->{wood_ix} and die "termite is already carrying some wood";
     $termite->{wood_ix} = $wood_ix;
-    $self->{wood}[$wood_ix]{taken} = 1;
 }
 
 sub termite_leave_wood {
     my ($self, $termite) = @_;
     my $wood_ix = delete $termite->{wood_ix} //
 	croak "termite can not leave wood because it is carrying nothing";
-    $self->{wood}[$wood_ix]{taken} = 0;
-    $self->{wood}[$wood_ix]{pos}->set($termite->{pos});
+    $self->{taken}--;
+    my $wood = $self->{wood}[$wood_ix];
+    $wood->{taken} = 0;
+    $wood->{pos}->set($termite->{pos});
 }
 
 
@@ -135,45 +142,79 @@ __END__
 
 =head1 NAME
 
-AI::Termites - Perl extension for blah blah blah
+AI::Termites - Artificial termites simulation
 
 =head1 SYNOPSIS
 
   use AI::Termites;
-  blah blah blah
+
+  my $termites = AI::Termites::VicinusOcurro->new(dim        => 2,
+                                                  n_wood     => 1000,
+                                                  n_termites => 100);
+
+  $termites->iterate for 0..10000;
 
 =head1 DESCRIPTION
 
-Stub documentation for AI::Termites, created by h2xs. It looks like the
-author of the extension was negligent enough to leave the stub
-unedited.
+This module simulates a termites world based on the ideas described on
+the book "Adventures in Modeling" by Vanessa Stevens Colella, Eric
+Klopfer and Mitchel Resnick
+(L<http://education.mit.edu/starlogo/adventures/>).
 
-Blah blah blah.
+In this version, termites can move in a n-dimensional boxed space, and
+are not limited to integer coordinates.
 
-=head2 EXPORT
+Also, the way they decide when to pick or leave wood are customizable,
+allowing to investigate how changing the rules affects the emergent
+behaviors.
 
-None by default.
+The module implements several termite subspecies (subclasses):
 
+=over 4
+
+=item LoginquitasPostulo
+
+This termites subspecie measures the distance to the nearest piece of
+wood.
+
+=item NemusNidor
+
+This termite smells the wood.
+
+=item PeractioBaro
+
+This termite is pretty simple and all that can see is if there is or
+not some piece of wood in the vecinity.
+
+=item VicinusOcurro
+
+This termite counts the pieces of wood that there are on its vecinity.
+
+=back
+
+If you want to use this module, you are expected to look at its source
+code!!!
 
 
 =head1 SEE ALSO
 
-Mention other useful documentation such as the documentation of
-related modules or operating system documentation (such as man pages
-in UNIX), or any relevant external documentation such as RFCs or
-standards.
+The sample program includes in the distribution as
+C<samples/termites.pl> can run the simulation and generate nice PNGs.
 
-If you have a mailing list set up for your module, mention it here.
+An online Artificial Termites simulation can be found here:
+L<http://www.permutationcity.co.uk/alife/termites.html>.
 
-If you have a web site set up for your module, mention it here.
+The origin of this module lies on the following PerlMonks post:
+L<http://perlmonks.org/?node_id=908684>.
 
 =head1 AUTHOR
 
-Salvador Fandino, E<lt>salva@E<gt>
+
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2011 by Salvador Fandino
+Copyright (C) 2011 by Salvador FandiE<ntilde>o,
+E<lt>sfandino@yahoo.comE<gt>
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.12.3 or,
