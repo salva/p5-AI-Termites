@@ -2,7 +2,7 @@ package AI::Termites;
 
 use 5.010;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use strict;
 use warnings;
