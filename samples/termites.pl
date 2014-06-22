@@ -95,6 +95,11 @@ while (1) {
         $im->filledEllipse(scl($ter->{pos}), 3, 3, $color);
     }
 
+    my $sum = Math::Vector::Real::V(0,0);
+    $sum += $_->{pos} for @{$ters->{wood}};
+    print "sum: $sum\n";
+
+
     my $name = sprintf "%s-%05d.png", $output, $fn;
     open my $fh, ">", $name;
     print $fh $im->png;
