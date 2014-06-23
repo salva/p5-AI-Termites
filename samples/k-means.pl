@@ -22,7 +22,7 @@ my $taken = 0;
 my $output = "output";
 my $truecolor = 0;
 my $top = 0;
-my $kmeans = 3;
+my $clusters = 3;
 
 my $result = GetOptions( "world-size=s" => \$world,
                          "specie=s"     => \$specie,
@@ -34,10 +34,12 @@ my $result = GetOptions( "world-size=s" => \$world,
                          "dim=i"        => \$dim,
                          "taken"        => \$taken,
                          "output=s"     => \$output,
-                         "kmeans=s"     => \$kmeans,
+                         "clusters=s"     => \$clusters,
                          "truecolor"    => \$truecolor,
                          "top=i"          => \$top,
                        );
+
+my $pi = 3.141592653589793;
 
 sub scl {
     my $p = shift;
@@ -78,7 +80,13 @@ while (1) {
     my $orange = $im->colorAllocate(255, 128, 0);
     my $green = $im->colorAllocate(0, 255, 0);
 
-    my @color = ($red, $blue, $orange, $green);
+    my @color;
+    for my $ix (0..$clusters - 1) {
+        my $angle = 2 * $pi * $ix / $clusters;
+        my @c = map { 256 * 0.499 * (1 + cos ($angle - $_)) } 0, 2/3 * $pi, 4/3 * $pi;
+        print "@c\n";
+        push @color, $im->colorAllocate(map { 256 * 0.499 * (1 + 0.5 * cos ($angle - $_)) } 0, 2/3 * $pi, 4/3 * $pi);
+    }
 
     my $txt = sprintf ("dim: %d, near: %.2f%%, termites: %d, wood: %d, wood taken: %d, iteration %d",
                        $dim,
@@ -89,19 +97,47 @@ while (1) {
     $im->string(gdSmallFont, 4, 4, $txt, $black);
 
     my $kdt = Math::Vector::Real::kdTree->new(map $_->{pos}, @{$ters->{wood}});
-    @kmean = $kdt->k_means_start($kmeans) unless @kmean;
+    @kmean = $kdt->k_means_start($clusters) unless @kmean;
     @kmean = $kdt->k_means_loop(@kmean);
-    my $sum = Math::Vector::Real::V(0,0);
-    $sum += $_->{pos} for @{$ters->{wood}};
-    print "k-means: @kmean\n";
-    print "sum: $kdt->{tree}[3]\n";
-    print "sum: $sum\n";
 
     my @assign = $kdt->k_means_assign(@kmean);
-    for my $ix (0..$#assign) {
-        my $color = $color[$assign[$ix]];
-        my $v = $kdt->at($ix);
-        $im->filledEllipse(scl($v), 8, 8, $color);
+
+    if ($dim == 2) {
+        require Algorithm::ConvexHull;
+        my @cluster = map [], @kmean;
+        push @{$cluster[$assign[$_]]}, $_ for 0..$#assign;
+
+        for my $cix (0..$#cluster) {
+            my $ixs = $cluster[$cix];
+            next unless @$ixs;
+            my @ch = Algorithm::ConvexHull::convex_hull_2d(map $kdt->at($_), @$ixs);
+
+            my $polygon = GD::Polygon->new;
+            $polygon->addPt(scl($_)) for @ch;
+            $im->openPolygon($polygon, $color[$cix]);
+        }
+
+        for my $wood (@{$ters->{wood}}) {
+            if ($wood->{taken}) {
+                $taken and $im->filledEllipse(scl($wood->{pos}), 8, 8, $orange);
+            }
+            else {
+                $im->filledEllipse(scl($wood->{pos}), 5, 5, $blue);
+            }
+        }
+
+        for my $ter (@{$ters->{termites}}) {
+            my $color = (defined($ter->{wood_ix}) ? $red : $green);
+            $im->filledEllipse(scl($ter->{pos}), 3, 3, $color);
+        }
+
+    }
+    else {
+        for my $ix (0..$#assign) {
+            my $color = $color[$assign[$ix]];
+            my $v = $kdt->at($ix);
+            $im->filledEllipse(scl($v), 8, 8, $color);
+        }
     }
 
     for my $k (0..$#kmean) {
@@ -123,4 +159,4 @@ while (1) {
     $fn++;
     last if ($top and $n > $top);
 }
-
+    
